@@ -32,7 +32,7 @@ void setup() {
 
   // Create JSON content
   DynamicJsonDocument doc(1024);
-  doc["action"] = "open";
+  doc["action"] = "close";
   String jsonString;
   serializeJson(doc, jsonString);
 
