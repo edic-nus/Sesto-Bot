@@ -24,6 +24,7 @@ Adafruit_SSD1306 display(128, 64, &Wire, OLED_RST_PIN);
 #define FRAME_COUNT (28)
 #define UI_MIDDLE_X (48)
 #define UI_MIDDLE_Y (10)
+#define AUTH_KEY_SESTO "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3MjI4NzI2MDAsIm5iZiI6MTcyMjg3MjYwMCwianRpIjoiYzFmZmJkMzgtMWM3NC00YmQzLWIwYTAtNTI1YzM1MTlkNTQ3IiwiZXhwIjoxNzI1NDY0NjAwLCJpZGVudGl0eSI6eyJncm91cF9uYW1lIjoicGFydG5lcl9hZG1pbiIsInVzZXJfbmFtZSI6InBhcnRuZXIiLCJmaXJzdF9uYW1lIjoiRElTVFJJQlVUT1IiLCJsYXN0X25hbWUiOiJBZG1pbiIsImVtYWlsIjoiIiwiY3JlYXRvciI6InNlc3RvIiwiaWQiOiJjZGFmYjc2Ni04OGMxLTQwYTktYjc2NC0xMWRjYTc5MGNkNDkiLCJub3RpZmljYXRpb25fc3Vic2NyaWJlcnMiOnsiYWxlcnQiOnsidWkiOnRydWUsImVtYWlsIjpmYWxzZX19LCJpc19lbWFpbF9vdHBfc2VudCI6ZmFsc2UsImlzX2VtYWlsX3ZlcmlmaWVkIjpmYWxzZX0sImZyZXNoIjpmYWxzZSwidHlwZSI6ImFjY2VzcyJ9.U7DrBxRbWWKiLVZLWEomufwOsMOUZMovpPm29HzzLtg"
 
 bool power_on = false;         // power on/off state of the remote
 const int batteryPin = 6;      // ADC pin connected to the voltage divider
@@ -39,7 +40,7 @@ WebServer server(80);
 const char* cabinetserverName = "http://192.168.0.104/request";
 const char* sestoinfoServerName = "http://192.168.0.100/public/amrs/statuses";
 const char* requestServerName = "http://192.168.0.100/public/tasks";
-String postServerName = "http://192.168.0.100/public/tasks";
+String postServerName = "http://192.168.0.100/public/tasks/";
 
 
 // define all the buttons
@@ -61,20 +62,36 @@ const int colCount = sizeof(cols) / sizeof(cols[0]);
 // array
 byte keys[colCount][rowCount];
 
-String retrieve_botstatus() {
-  // retrieves information from sestobot
+int retrieve_botstatus_battery() {
   WiFiClient client;
   HTTPClient http;
   http.begin(client, sestoinfoServerName);
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("Authorization", "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3MTgxMjQ1MjcsIm5iZiI6MTcxODEyNDUyNywianRpIjoiNmVhYWY4MmItYzg1NC00MjNmLTk1ZDktOTMwNGYyZjVjOGRhIiwiZXhwIjoxNzIwNzE2NTI3LCJpZGVudGl0eSI6eyJncm91cF9uYW1lIjoicGFydG5lcl9hZG1pbiIsInVzZXJfbmFtZSI6InBhcnRuZXIiLCJmaXJzdF9uYW1lIjoiRElTVFJJQlVUT1IiLCJsYXN0X25hbWUiOiJBZG1pbiIsImVtYWlsIjoiIiwiY3JlYXRvciI6InNlc3RvIiwiaWQiOiJjZGFmYjc2Ni04OGMxLTQwYTktYjc2NC0xMWRjYTc5MGNkNDkiLCJub3RpZmljYXRpb25fc3Vic2NyaWJlcnMiOnsiYWxlcnQiOnsidWkiOnRydWUsImVtYWlsIjpmYWxzZX19LCJpc19lbWFpbF9vdHBfc2VudCI6ZmFsc2UsImlzX2VtYWlsX3ZlcmlmaWVkIjpmYWxzZX0sImZyZXNoIjpmYWxzZSwidHlwZSI6ImFjY2VzcyJ9.GSR2u5W-wVDyRdMmXZBwzd92hZnHS77_mwEwQV38Y9U");
+  http.addHeader("Authorization", AUTH_KEY_SESTO);
   int httpResponseCode = http.GET();
   String response = http.getString();
   JSONVar object = JSON.parse(response);
   http.end();
 
   // retrieves task ID from JSON file
-  String id_data = object[0]["status"];
+  int id_data = object[0]["battery_level"];
+  return id_data;  // the dictionary information from the SESTO bot
+}
+
+String retrieve_botstatus_movement() {
+  // retrieves information from sestobot
+  WiFiClient client;
+  HTTPClient http;
+  http.begin(client, sestoinfoServerName);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Authorization", AUTH_KEY_SESTO);
+  int httpResponseCode = http.GET();
+  String response = http.getString();
+  JSONVar object = JSON.parse(response);
+  http.end();
+
+  // retrieves task ID from JSON file
+  String id_data = object[0]["navigation_state"];
   return id_data;  // the dictionary information from the SESTO bot
 }
 
@@ -82,14 +99,14 @@ int retrieve_workid() {
   // retrieves information from sestobot
   WiFiClient client;
   HTTPClient http;
-  http.begin(client, sestoinfoServerName);
+  http.begin(client, requestServerName);
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("Authorization", "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3MTgxMjQ1MjcsIm5iZiI6MTcxODEyNDUyNywianRpIjoiNmVhYWY4MmItYzg1NC00MjNmLTk1ZDktOTMwNGYyZjVjOGRhIiwiZXhwIjoxNzIwNzE2NTI3LCJpZGVudGl0eSI6eyJncm91cF9uYW1lIjoicGFydG5lcl9hZG1pbiIsInVzZXJfbmFtZSI6InBhcnRuZXIiLCJmaXJzdF9uYW1lIjoiRElTVFJJQlVUT1IiLCJsYXN0X25hbWUiOiJBZG1pbiIsImVtYWlsIjoiIiwiY3JlYXRvciI6InNlc3RvIiwiaWQiOiJjZGFmYjc2Ni04OGMxLTQwYTktYjc2NC0xMWRjYTc5MGNkNDkiLCJub3RpZmljYXRpb25fc3Vic2NyaWJlcnMiOnsiYWxlcnQiOnsidWkiOnRydWUsImVtYWlsIjpmYWxzZX19LCJpc19lbWFpbF9vdHBfc2VudCI6ZmFsc2UsImlzX2VtYWlsX3ZlcmlmaWVkIjpmYWxzZX0sImZyZXNoIjpmYWxzZSwidHlwZSI6ImFjY2VzcyJ9.GSR2u5W-wVDyRdMmXZBwzd92hZnHS77_mwEwQV38Y9U");
+  http.addHeader("Authorization", AUTH_KEY_SESTO);
   int httpResponseCode = http.GET();
   String response = http.getString();
   JSONVar object = JSON.parse(response);
   http.end();
-
+  
   // retrieves task ID from JSON file
   int id_data = object[0]["id"];
   return id_data;  // the dictionary information from the SESTO bot
@@ -106,7 +123,7 @@ int poster(int id_code, int operation) {
   if (operation == 0) {
     http.begin(client, postServerName + "cancel?id=" + id_num);
     http.addHeader("Content-Type", "application/json");
-    http.addHeader("Authorization", "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3MTgxMjQ1MjcsIm5iZiI6MTcxODEyNDUyNywianRpIjoiNmVhYWY4MmItYzg1NC00MjNmLTk1ZDktOTMwNGYyZjVjOGRhIiwiZXhwIjoxNzIwNzE2NTI3LCJpZGVudGl0eSI6eyJncm91cF9uYW1lIjoicGFydG5lcl9hZG1pbiIsInVzZXJfbmFtZSI6InBhcnRuZXIiLCJmaXJzdF9uYW1lIjoiRElTVFJJQlVUT1IiLCJsYXN0X25hbWUiOiJBZG1pbiIsImVtYWlsIjoiIiwiY3JlYXRvciI6InNlc3RvIiwiaWQiOiJjZGFmYjc2Ni04OGMxLTQwYTktYjc2NC0xMWRjYTc5MGNkNDkiLCJub3RpZmljYXRpb25fc3Vic2NyaWJlcnMiOnsiYWxlcnQiOnsidWkiOnRydWUsImVtYWlsIjpmYWxzZX19LCJpc19lbWFpbF9vdHBfc2VudCI6ZmFsc2UsImlzX2VtYWlsX3ZlcmlmaWVkIjpmYWxzZX0sImZyZXNoIjpmYWxzZSwidHlwZSI6ImFjY2VzcyJ9.GSR2u5W-wVDyRdMmXZBwzd92hZnHS77_mwEwQV38Y9U");
+    http.addHeader("Authorization", AUTH_KEY_SESTO);
     int httpResponseCode = http.POST("{\"id\":" + id_num + "}");
     http.end();
     return httpResponseCode;
@@ -117,7 +134,7 @@ int poster(int id_code, int operation) {
     Serial.println("Pausing...");
     http.begin(client, postServerName + "pause?id=" + id_num);
     http.addHeader("Content-Type", "application/json");
-    http.addHeader("Authorization", "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3MTgxMjQ1MjcsIm5iZiI6MTcxODEyNDUyNywianRpIjoiNmVhYWY4MmItYzg1NC00MjNmLTk1ZDktOTMwNGYyZjVjOGRhIiwiZXhwIjoxNzIwNzE2NTI3LCJpZGVudGl0eSI6eyJncm91cF9uYW1lIjoicGFydG5lcl9hZG1pbiIsInVzZXJfbmFtZSI6InBhcnRuZXIiLCJmaXJzdF9uYW1lIjoiRElTVFJJQlVUT1IiLCJsYXN0X25hbWUiOiJBZG1pbiIsImVtYWlsIjoiIiwiY3JlYXRvciI6InNlc3RvIiwiaWQiOiJjZGFmYjc2Ni04OGMxLTQwYTktYjc2NC0xMWRjYTc5MGNkNDkiLCJub3RpZmljYXRpb25fc3Vic2NyaWJlcnMiOnsiYWxlcnQiOnsidWkiOnRydWUsImVtYWlsIjpmYWxzZX19LCJpc19lbWFpbF9vdHBfc2VudCI6ZmFsc2UsImlzX2VtYWlsX3ZlcmlmaWVkIjpmYWxzZX0sImZyZXNoIjpmYWxzZSwidHlwZSI6ImFjY2VzcyJ9.GSR2u5W-wVDyRdMmXZBwzd92hZnHS77_mwEwQV38Y9U");
+    http.addHeader("Authorization", AUTH_KEY_SESTO);
     int httpResponseCode = http.POST("{\"id\":" + id_num + "}");
     http.end();
     return httpResponseCode;
@@ -128,7 +145,7 @@ int poster(int id_code, int operation) {
     Serial.println("Resuming...");
     http.begin(client, postServerName + "resume?id=" + id_num);
     http.addHeader("Content-Type", "application/json");
-    http.addHeader("Authorization", "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3MTgxMjQ1MjcsIm5iZiI6MTcxODEyNDUyNywianRpIjoiNmVhYWY4MmItYzg1NC00MjNmLTk1ZDktOTMwNGYyZjVjOGRhIiwiZXhwIjoxNzIwNzE2NTI3LCJpZGVudGl0eSI6eyJncm91cF9uYW1lIjoicGFydG5lcl9hZG1pbiIsInVzZXJfbmFtZSI6InBhcnRuZXIiLCJmaXJzdF9uYW1lIjoiRElTVFJJQlVUT1IiLCJsYXN0X25hbWUiOiJBZG1pbiIsImVtYWlsIjoiIiwiY3JlYXRvciI6InNlc3RvIiwiaWQiOiJjZGFmYjc2Ni04OGMxLTQwYTktYjc2NC0xMWRjYTc5MGNkNDkiLCJub3RpZmljYXRpb25fc3Vic2NyaWJlcnMiOnsiYWxlcnQiOnsidWkiOnRydWUsImVtYWlsIjpmYWxzZX19LCJpc19lbWFpbF9vdHBfc2VudCI6ZmFsc2UsImlzX2VtYWlsX3ZlcmlmaWVkIjpmYWxzZX0sImZyZXNoIjpmYWxzZSwidHlwZSI6ImFjY2VzcyJ9.GSR2u5W-wVDyRdMmXZBwzd92hZnHS77_mwEwQV38Y9U");
+    http.addHeader("Authorization", AUTH_KEY_SESTO);
     int httpResponseCode = http.POST("{\"id\":" + id_num + "}");
     http.end();
     return httpResponseCode;
@@ -140,7 +157,7 @@ int request_tinkering_corner() {
   HTTPClient http;
   http.begin(client, requestServerName);
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("Authorization", "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3MTgxMjQ1MjcsIm5iZiI6MTcxODEyNDUyNywianRpIjoiNmVhYWY4MmItYzg1NC00MjNmLTk1ZDktOTMwNGYyZjVjOGRhIiwiZXhwIjoxNzIwNzE2NTI3LCJpZGVudGl0eSI6eyJncm91cF9uYW1lIjoicGFydG5lcl9hZG1pbiIsInVzZXJfbmFtZSI6InBhcnRuZXIiLCJmaXJzdF9uYW1lIjoiRElTVFJJQlVUT1IiLCJsYXN0X25hbWUiOiJBZG1pbiIsImVtYWlsIjoiIiwiY3JlYXRvciI6InNlc3RvIiwiaWQiOiJjZGFmYjc2Ni04OGMxLTQwYTktYjc2NC0xMWRjYTc5MGNkNDkiLCJub3RpZmljYXRpb25fc3Vic2NyaWJlcnMiOnsiYWxlcnQiOnsidWkiOnRydWUsImVtYWlsIjpmYWxzZX19LCJpc19lbWFpbF9vdHBfc2VudCI6ZmFsc2UsImlzX2VtYWlsX3ZlcmlmaWVkIjpmYWxzZX0sImZyZXNoIjpmYWxzZSwidHlwZSI6ImFjY2VzcyJ9.GSR2u5W-wVDyRdMmXZBwzd92hZnHS77_mwEwQV38Y9U");
+  http.addHeader("Authorization", AUTH_KEY_SESTO);
   int httpResponseCode = http.POST("{\"amr_id\":15,\"workflow_id\":146}");
   http.end();
   return httpResponseCode;
@@ -151,7 +168,7 @@ int request_sandbox() {
   HTTPClient http;
   http.begin(client, requestServerName);
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("Authorization", "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3MTgxMjQ1MjcsIm5iZiI6MTcxODEyNDUyNywianRpIjoiNmVhYWY4MmItYzg1NC00MjNmLTk1ZDktOTMwNGYyZjVjOGRhIiwiZXhwIjoxNzIwNzE2NTI3LCJpZGVudGl0eSI6eyJncm91cF9uYW1lIjoicGFydG5lcl9hZG1pbiIsInVzZXJfbmFtZSI6InBhcnRuZXIiLCJmaXJzdF9uYW1lIjoiRElTVFJJQlVUT1IiLCJsYXN0X25hbWUiOiJBZG1pbiIsImVtYWlsIjoiIiwiY3JlYXRvciI6InNlc3RvIiwiaWQiOiJjZGFmYjc2Ni04OGMxLTQwYTktYjc2NC0xMWRjYTc5MGNkNDkiLCJub3RpZmljYXRpb25fc3Vic2NyaWJlcnMiOnsiYWxlcnQiOnsidWkiOnRydWUsImVtYWlsIjpmYWxzZX19LCJpc19lbWFpbF9vdHBfc2VudCI6ZmFsc2UsImlzX2VtYWlsX3ZlcmlmaWVkIjpmYWxzZX0sImZyZXNoIjpmYWxzZSwidHlwZSI6ImFjY2VzcyJ9.GSR2u5W-wVDyRdMmXZBwzd92hZnHS77_mwEwQV38Y9U");
+  http.addHeader("Authorization", AUTH_KEY_SESTO);
   int httpResponseCode = http.POST("{\"amr_id\":15,\"workflow_id\":143}");
   http.end();
   return httpResponseCode;
@@ -1028,8 +1045,10 @@ void setup() {
   display.clearDisplay();
 }
 
+// PLEASE RTFM BEFORE PROCEEDING!
 void loop() {
   int button_reading = read_button_matrix();
+  // this means no reading
   if (button_reading == 0) {
     pages_main(current_index_main);
     button_reading = read_button_matrix();
@@ -1037,14 +1056,43 @@ void loop() {
 
   // power off the OLED display
   else if (button_reading == 9) {
+    delay(500);
     display.clearDisplay();
+    display.display();
+    display.fillRoundRect(5, 5, 118, 54, 10, 1);
+    display.fillRoundRect(7, 7, 114, 50, 10, 0);
+    display.setTextColor(SSD1306_WHITE);
+    display.setTextSize(1);
+    display.setCursor(12, 30);
+    display.println(F("GOODBYE!"));
+    display.display();
+    delay(1000);
+    display.clearDisplay();
+    display.display();
     display.ssd1306_command(SSD1306_DISPLAYOFF);
     WiFi.disconnect();
     setup();
   }
 
+  // users can define their customised function here! (button_reading 1, 2, 3 and 8)
+  else if (button_reading == 1) {
+  
+  }
+
+  else if (button_reading == 2) {
+
+  }
+
+  else if (button_reading == 3) {
+
+  }
+
+  else if (button_reading == 8) {
+
+  }
+
   // user presses the select button
-  if (button_reading == 5) {
+  else if (button_reading == 5) {
     // scenario where tinker corner or sandbox is present
     if (current_index_main == 1 || current_index_main == 3) {
       for (int i = 0; i < 50; i = i + 2) {
@@ -1083,12 +1131,12 @@ void loop() {
           // if presses the play button, under tinker corner
           if (current_index_main == 1 && current_index_top == 0) {
             int response = request_tinkering_corner();
-            if (response != 200) {
-              display.println(F("ERROR..."));
+            if (response >= 200 || response < 300) {
+              display.println(F("SESTO GOING!"));
               display.display();
             }
             else {
-              display.println(F("SESTO GOING!"));
+              display.println(F("ERROR..."));
               display.display();
             }
             while (read_button_matrix() != 7) {
@@ -1103,7 +1151,7 @@ void loop() {
           // if presses the cancel button
           else if (current_index_top == 2) {
             int response = poster(retrieve_workid(), 0);
-            if (response != 200) {
+            if (response >= 200 && response < 300) {
               display.println(F("Cancel failed"));
               display.display();
             }
@@ -1122,9 +1170,9 @@ void loop() {
           // if presses the resume/pause button
           else if (current_index_top == 1) {
             // retrieves the bot's status (pausing/moving)
-            if (retrieve_botstatus() == "paused") {
+            if (retrieve_botstatus_movement() == "paused") {
               int response = poster(retrieve_workid(), 2);
-              if (response != 200) {
+              if (response >= 200 || response < 300) {
                 display.println(F("Resuming failed"));
                 display.display();
               }
@@ -1141,7 +1189,7 @@ void loop() {
             }
             else {
               int response = poster(retrieve_workid(), 1);
-              if (response != 200) {
+              if (response >= 200 || response < 300) {
                 display.println(F("Pausing failed"));
                 display.display();
               }
@@ -1164,12 +1212,12 @@ void loop() {
           // if presses the play button, under sandbox
           else if (current_index_top == 0 && current_index_main == 3) {
             int response = request_sandbox();
-            if (response != 200) {
-              display.println(F("ERROR..."));
+            if (response >= 200 || response < 300) {
+              display.println(F("SESTO GOING!"));
               display.display();
             }
             else {
-              display.println(F("SESTO GOING!"));
+              display.println(F("ERROR..."));
               display.display();
             }
             while (read_button_matrix() != 7) {
@@ -1200,7 +1248,7 @@ void loop() {
       }
     }
     // scenario where cabinet is present
-    if (current_index_main == 0) {
+    else if (current_index_main == 0) {
       int httpResponseCode = opencabinet();
       delay(500);
       display.clearDisplay();
@@ -1230,23 +1278,33 @@ void loop() {
       display.display();
     }
     // scenario where battery is present
-    if (current_index_main == 5) {
+    else if (current_index_main == 2) {
       // retrieves battery level of sesto robot
+      display.clearDisplay();
+      display.display();
+      display.fillRoundRect(5, 5, 118, 54, 10, 1);
+      display.fillRoundRect(7, 7, 114, 50, 10, 0);
+      display.display();
+      display.setTextColor(SSD1306_WHITE);
+      display.setTextSize(1);
+
       float battery_remote = battery_check_remote();
 
       while (read_button_matrix() != 7) {  // brings up a window that tells you the status of call
-        display.fillRoundRect(5, 5, 123, 59, 10, 1);
-        display.fillRoundRect(7, 7, 121, 27, 10, 0);
-        display.display();
-
-        display.setTextColor(SSD1306_WHITE);
-        display.setTextSize(1);
-        display.setCursor(12, 12);
+        display.setCursor(12, 40);
         display.println(F("Remote: "));
         display.display();
 
-        display.setCursor(20, 12);
+        display.setCursor(60, 40);
         display.println((battery_remote / 3.7) * 100);
+        display.display();
+
+        display.setCursor(12, 20);
+        display.println(F("SESTO: "));
+        display.display();
+
+        display.setCursor(50, 20);
+        display.println(retrieve_botstatus_battery());
         display.display();
 
         // need to show battery level of sesto bot as well
@@ -1261,6 +1319,7 @@ void loop() {
   if (button_reading == 4) {
     scroll_left();
   }
+
   if (button_reading == 6) {
     scroll_right();
   }
