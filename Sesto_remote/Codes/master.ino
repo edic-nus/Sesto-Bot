@@ -1,20 +1,25 @@
-#include <WiFi.h>
-#include <WebServer.h>
-#include <HTTPClient.h>
-#include "ArduinoJson.h"
-#include <Arduino_JSON.h>
-#include <Adafruit_NeoPixel.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
-#include "Wire.h"
+// Welcome to the logics behind the SRC! Please read through all of the code to fully understand it, before proceeding in customising on your own!
+// Here, we have imported all of the libraries neccessary
+#include <WiFi.h>               // For the WiFi module inside the ESP32
+#include <WebServer.h>          //
+#include <HTTPClient.h>         //
+#include "ArduinoJson.h"        // Since we are communicating with the SESTO IMagnus using JSON files, this is neccessary
+#include <Arduino_JSON.h>       //
+#include <Adafruit_NeoPixel.h>  // Lighting options for the ESP32, refer to https://learn.adafruit.com/adafruit-neopixel-uberguide/arduino-library-use
+#include <Adafruit_GFX.h>       // For the OLED Display purposes, refer to https://randomnerdtutorials.com/guide-for-oled-display-with-arduino/
+#include <Adafruit_SSD1306.h>   //
+#include "Wire.h"               // Configuration library for SCL and SDA (I2C connections)
 
+// This is to define the OLED Display Specs, change if neccessary
 #define SCREEN_I2C_ADDR 0x3C  // or 0x3C
 #define SCREEN_WIDTH 128      // OLED display width, in pixels
 #define SCREEN_HEIGHT 64      // OLED display height, in pixels
 #define OLED_RST_PIN -1       // Reset pin (-1 if not available)
 
+// Defines the I2C pins
 int I2C_SDA_PIN = 4;
 int I2C_SCL_PIN = 5;
+
 
 Adafruit_SSD1306 display(128, 64, &Wire, OLED_RST_PIN);
 
@@ -24,8 +29,29 @@ Adafruit_SSD1306 display(128, 64, &Wire, OLED_RST_PIN);
 #define FRAME_COUNT (28)
 #define UI_MIDDLE_X (48)
 #define UI_MIDDLE_Y (10)
+
+// Authentication key to access commands to SESTO IMagnus. If error 401, error 444 occurs on the display (display will not show what error it is), change the AUTH_KEY_SESTO
+// To do this, run the function below using either a new ESP32 or an existing one. (remember to comment everything inside the loop before running the function!)
+// Ensure that the function is placed under void setup().
+//
+// void requestToken() {
+//   WiFiClient client;
+//   HTTPClient http;
+//   http.begin(client, "http://192.168.0.100/public/auth");
+//   http.addHeader("Content-Type", "application/json");
+//   int httpResponseCode = http.POST("{\"user_name\":\"partner\",\"password\":\"P@ssword123\"}");
+//   String response_string = http.getString();
+//   Serial.println(response_string);
+//   http.end();
+// }
+//
+// After running this, you should recieve a very long token. Replace the old token with the new one, and ensure that there is Bearer at the front of the token, as shown below.
+// NOTE: JUST CHANGE THIS LINE HERE (LINE 52) WHEN RENEWING THE AUTHENTICATION KEY
+// remember to uncomment the inside of void loop() before reflashing the code into the ESP32
+
 #define AUTH_KEY_SESTO "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3MjI4NzI2MDAsIm5iZiI6MTcyMjg3MjYwMCwianRpIjoiYzFmZmJkMzgtMWM3NC00YmQzLWIwYTAtNTI1YzM1MTlkNTQ3IiwiZXhwIjoxNzI1NDY0NjAwLCJpZGVudGl0eSI6eyJncm91cF9uYW1lIjoicGFydG5lcl9hZG1pbiIsInVzZXJfbmFtZSI6InBhcnRuZXIiLCJmaXJzdF9uYW1lIjoiRElTVFJJQlVUT1IiLCJsYXN0X25hbWUiOiJBZG1pbiIsImVtYWlsIjoiIiwiY3JlYXRvciI6InNlc3RvIiwiaWQiOiJjZGFmYjc2Ni04OGMxLTQwYTktYjc2NC0xMWRjYTc5MGNkNDkiLCJub3RpZmljYXRpb25fc3Vic2NyaWJlcnMiOnsiYWxlcnQiOnsidWkiOnRydWUsImVtYWlsIjpmYWxzZX19LCJpc19lbWFpbF9vdHBfc2VudCI6ZmFsc2UsImlzX2VtYWlsX3ZlcmlmaWVkIjpmYWxzZX0sImZyZXNoIjpmYWxzZSwidHlwZSI6ImFjY2VzcyJ9.U7DrBxRbWWKiLVZLWEomufwOsMOUZMovpPm29HzzLtg"
 
+// This is the variables required to calculate the voltage of the inserted battery, to keep track of the battery status.
 bool power_on = false;         // power on/off state of the remote
 const int batteryPin = 6;      // ADC pin connected to the voltage divider
 float res1 = 10000.0;          // Resistance of R1 (in ohms)
@@ -33,16 +59,21 @@ float res2 = 10000.0;          // Resistance of R2 (in ohms)
 float maxAdcValue = 4095.0;    // Maximum value for the 12-bit ADC
 float referenceVoltage = 3.3;  // Reference voltage for the ESP32 ADC
 
+// This is the variables required to connect to the WiFi for communications to the SESTO IMagnus
+// Change this if the WiFi credentials have changed
 const char* ssid = "TP-Link_DE83";
 const char* password = "46193346";
 WebServer server(80);
 
+// This is the API endpoints used throughout the code
 const char* cabinetserverName = "http://192.168.0.104/request";
 const char* sestoinfoServerName = "http://192.168.0.100/public/amrs/statuses";
 const char* requestServerName = "http://192.168.0.100/public/tasks";
 String postServerName = "http://192.168.0.100/public/tasks/";
 
 
+// Next is defining the buttons. The buttons uses a matrix wiring method, refer to PCB Schematics for more information on how
+// the buttons work.
 // define all the buttons
 // Button pins
 int R1 = 42;
@@ -52,6 +83,7 @@ int C1 = 39;
 int C2 = 38;
 int C3 = 37;
 
+// rows
 byte rows[] = { R1, R2, R3 };
 const int rowCount = sizeof(rows) / sizeof(rows[0]);
 
@@ -62,6 +94,7 @@ const int colCount = sizeof(cols) / sizeof(cols[0]);
 // array
 byte keys[colCount][rowCount];
 
+// This section contains all of the retrivers and posters for communications between the SESTO IMagnus and SRC.
 int retrieve_botstatus_battery() {
   WiFiClient client;
   HTTPClient http;
@@ -106,10 +139,46 @@ int retrieve_workid() {
   String response = http.getString();
   JSONVar object = JSON.parse(response);
   http.end();
-  
+
   // retrieves task ID from JSON file
   int id_data = object[0]["id"];
   return id_data;  // the dictionary information from the SESTO bot
+}
+
+String botZone() {
+  WiFiClient client;
+  HTTPClient http;
+  http.begin(client, sestoinfoServerName);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Authorization", AUTH_KEY_SESTO);
+  int httpResponseCode = http.GET();
+  if (httpResponseCode > 0) {
+    Serial.print("HTTP Response code: ");
+    Serial.println(httpResponseCode);
+  } else {
+    Serial.print("Error code: ");
+    Serial.println(httpResponseCode);
+  }
+  String response = http.getString();
+  JSONVar object = JSON.parse(response);
+  String x_string = object[0]["telemetry"]["x"];
+  int x = x_string.toInt();
+
+  if (x >= 8.5) {
+    return "front";
+  } else {
+    return "back";
+  }
+}
+
+void botishere() {
+  WiFiClient client;
+  HTTPClient http;
+  http.begin(client, requestServerName);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Authorization", AUTH_KEY_SESTO);
+  int httpResponseCode = http.POST("{\"amr_id\":15,\"workflow_id\":148}");
+  http.end();
 }
 
 int poster(int id_code, int operation) {
@@ -149,7 +218,7 @@ int poster(int id_code, int operation) {
     int httpResponseCode = http.POST("{\"id\":" + id_num + "}");
     http.end();
     return httpResponseCode;
-  } 
+  }
 }
 
 int request_tinkering_corner() {
@@ -186,43 +255,30 @@ int opencabinet() {
   serializeJson(doc, jsonString);
 
   int httpResponseCode = http.POST(jsonString);
-    // Print the response
+  // Print the response
   return httpResponseCode;
 }
 
+// This section proccesses incoming HTTP request from the SESTO IMagnus.
 void handleRequest() {
   if (server.hasArg("plain") == false) {
     server.send(400, "application/json", "{\n\t\"status\":\"error\",\n\t\"message\":\"Bad Request - No Data Received\"\n}\n");
     return;
   }
 
-  DynamicJsonDocument doc(1024);
-  deserializeJson(doc, server.arg("plain"));
-  String action = doc["action"];
-  String parameter = doc["parameter"];
+  // If you want to process further, add your logic here
+  // For example:
+  // DynamicJsonDocument doc(1024);
+  // deserializeJson(doc, server.arg("plain"));
+  // String action = doc["action"];
+  // String parameter = doc["parameter"];
+  // ... (additional processing)
 
-  if (action == "botStatus") {
-    if (parameter == "front") {
-      delay(200);
-      server.send(200, "application/json");
-    } else if (parameter == "back") {
-      delay(200);
-      server.send(200, "application/json");
-    } else if (parameter == "notMoving") {
-      delay(200);
-      server.send(200, "application/json");
-    } else {
-      server.send(400, "application/json", "{\n\t\"status\":\"error\",\n\t\"data\":{\n\t\t\"message\":\"Invalid Parameter\"\n\t}\n}\n");
-    }
-  } else if (action == "stop") {
-    delay(200);
-    server.send(200, "application/json");
-  } else {
-    server.send(400, "application/json", "{\n\t\"status\":\"error\",\n\t\"data\":{\n\t\t\"message\":\"Invalid Action\"\n\t}\n}\n");
-  }
+  // For now, we just send a success response indicating the request was handled
+  server.send(200, "application/json", "{\n\t\"status\":\"success\",\n\t\"message\":\"Data Received\"\n}\n");
 }
 
-// battery checker
+// This section checks the battery status of the SRC
 float battery_check_remote() {
   analogReadResolution(12);  // Set ADC resolution to 12 bits
   int adcValue = analogRead(batteryPin);
@@ -231,6 +287,7 @@ float battery_check_remote() {
   return batteryVoltage;
 }
 
+// Next is the UI of the SRC, each functions below contains animated icons, containers that contains the icons, and description of the icons. Refer to NSWS Report (SESTO) for more details
 // defining the animated icons
 // each UI icon will have a pos: 0 = right, 1 = middle, 2 = right (except WiFi)
 void UI_wifi() {
@@ -811,6 +868,7 @@ void description(int index, bool selected = false) {
   }
 }
 
+// This section covers how the navigation aspects of the UI. Refer to PCB Schematics for more info on how the button connection works.
 // function to read buttons
 int read_button_matrix() {
   // to read a button, the column must first be turned to ground.
@@ -1130,14 +1188,20 @@ void loop() {
           delay(500);
           // if presses the play button, under tinker corner
           if (current_index_main == 1 && current_index_top == 0) {
-            int response = request_tinkering_corner();
-            if (response >= 200 || response < 300) {
-              display.println(F("SESTO GOING!"));
+            if (botZone() == "back") {
+              display.println(F("SESTO IS ALRD HERE!"));
               display.display();
             }
             else {
-              display.println(F("ERROR..."));
-              display.display();
+              int response = request_tinkering_corner();
+              if (response >= 200 || response < 300) {
+                display.println(F("SESTO GOING!"));
+                display.display();
+              }
+              else {
+                display.println(F("ERROR..."));
+                display.display();
+              }
             }
             while (read_button_matrix() != 7) {
               delay(50);
@@ -1211,14 +1275,20 @@ void loop() {
 
           // if presses the play button, under sandbox
           else if (current_index_top == 0 && current_index_main == 3) {
-            int response = request_sandbox();
-            if (response >= 200 || response < 300) {
-              display.println(F("SESTO GOING!"));
+            if (botZone() == "front") {
+              display.println(F("SESTO IS ALRD HERE!"));
               display.display();
             }
             else {
-              display.println(F("ERROR..."));
-              display.display();
+              int response = request_sandbox();
+              if (response >= 200 || response < 300) {
+                display.println(F("SESTO GOING!"));
+                display.display();
+              }
+              else {
+                display.println(F("ERROR..."));
+                display.display();
+              }
             }
             while (read_button_matrix() != 7) {
               delay(50);
