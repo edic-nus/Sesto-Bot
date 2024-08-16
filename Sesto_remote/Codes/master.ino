@@ -282,8 +282,10 @@ void handleRequest() {
 float battery_check_remote() {
   analogReadResolution(12);  // Set ADC resolution to 12 bits
   int adcValue = analogRead(batteryPin);
+  
   float voltage = (adcValue / maxAdcValue) * referenceVoltage;
   float batteryVoltage = voltage * (res1 + res2) / (res2);  // Calculate actual battery voltage
+  Serial.println(batteryVoltage);
   return batteryVoltage;
 }
 
@@ -904,9 +906,9 @@ int read_button_matrix() {
 int handlebuttonpress(int col, int row) {
   // define the map of the buttons
   const int button_map[3][3] = {
-    { 1, 2, 3 },
-    { 4, 5, 6 },
-    { 7, 8, 9 }
+    { 7, 4, 1 },
+    { 8, 5, 2 },
+    { 9, 6, 3 }
   };
 
   // define what will happen if a button is pressed
