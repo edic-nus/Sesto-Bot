@@ -1131,7 +1131,7 @@ void loop() {
     display.display();
     display.ssd1306_command(SSD1306_DISPLAYOFF);
     WiFi.disconnect();
-    setup();
+    ESP.restart();
   }
 
   // users can define their customised function here! (button_reading 1, 2, 3 and 8)
@@ -1202,6 +1202,8 @@ void loop() {
               }
               else {
                 display.println(F("ERROR..."));
+                display.setCursor(12, 40);
+                display.println(response);
                 display.display();
               }
             }
@@ -1217,12 +1219,15 @@ void loop() {
           // if presses the cancel button
           else if (current_index_top == 2) {
             int response = poster(retrieve_workid(), 0);
+            Serial.println(response);
             if (response >= 200 && response < 300) {
-              display.println(F("Cancel failed"));
+              display.println(F("Task cancelled"));
               display.display();
             }
             else {
-              display.println(F("Task canceled"));
+              display.println(F("Cancel failed..."));
+              display.setCursor(12, 40);
+              display.println(response);
               display.display();
             }
             while (read_button_matrix() != 7) {
@@ -1238,12 +1243,15 @@ void loop() {
             // retrieves the bot's status (pausing/moving)
             if (retrieve_botstatus_movement() == "paused") {
               int response = poster(retrieve_workid(), 2);
+              Serial.println(response);
               if (response >= 200 || response < 300) {
-                display.println(F("Resuming failed"));
+                display.println(F("Resuming"));
                 display.display();
               }
               else {
-                display.println(F("Resuming"));
+                display.println(F("Resuming failed..."));
+                display.setCursor(12, 40);
+                display.println(response);
                 display.display();
               }
               while (read_button_matrix() != 7) {
@@ -1255,12 +1263,15 @@ void loop() {
             }
             else {
               int response = poster(retrieve_workid(), 1);
+              Serial.println(response);
               if (response >= 200 || response < 300) {
-                display.println(F("Pausing failed"));
+                display.println(F("Pausing"));
                 display.display();
               }
               else {
-                display.println(F("Pausing"));
+                display.println(F("Pausing failed..."));
+                display.setCursor(12, 40);
+                display.println(response);
                 display.display();
               }
               while (read_button_matrix() != 7) {
@@ -1289,6 +1300,8 @@ void loop() {
               }
               else {
                 display.println(F("ERROR..."));
+                display.setCursor(12, 40);
+                display.println(response);
                 display.display();
               }
             }
@@ -1368,7 +1381,7 @@ void loop() {
         display.display();
 
         display.setCursor(60, 40);
-        display.println((battery_remote / 3.7) * 100);
+        display.println((battery_remote / 4.2) * 100);
         display.display();
 
         display.setCursor(12, 20);
